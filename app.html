@@ -10,14 +10,16 @@
         const name = document.getElementById("edit-name").value.trim();
         const owner = document.getElementById("edit-owner").value.trim();
         const desc = document.getElementById("edit-desc").value.trim();
+        const actualEnd = document.getElementById("edit-actualEnd").value;
         const t = tasks.find((t) => t.id === id);
         if (t) {
           t.name = name;
           t.owner = owner;
           t.desc = desc;
-          renderGantt(); // 重新渲染甘特图，更新悬停信息
+          t.actualEnd = actualEnd;
+          renderGantt();
           const popup = document.querySelector(".popup-wrapper");
-          if (popup) popup.remove(); // 确保弹窗被移除
+          if (popup) popup.remove();
         }
       }
 
@@ -275,6 +277,8 @@
           <input class='w-full border mb-2 px-2 py-1 rounded' value="${task.name}" id="edit-name" />
           <label class='text-sm block mb-1'>负责人</label>
           <input class='w-full border mb-2 px-2 py-1 rounded' value="${task.owner}" id="edit-owner" />
+          <label class='text-sm block mb-1'>实际完成时间</label>
+          <input type="date" class='w-full border mb-2 px-2 py-1 rounded' value="${task.actualEnd || ''}" id="edit-actualEnd" />
           <label class='text-sm block mb-1'>描述</label>
           <textarea class='w-full border mb-2 px-2 py-1 rounded' id="edit-desc">${task.desc}</textarea>
           <div class='flex justify-between mt-4'>
@@ -425,8 +429,8 @@
     reportContent += "<section class='bg-white p-6 rounded-lg shadow'>";
     reportContent += "<h2 class='text-xl font-semibold mb-4'>任务状态分布</h2>";
     reportContent += "<div class='grid grid-cols-1 lg:grid-cols-2 gap-8'>";
-    reportContent += "<div id='chartContainer'></div>";
-    reportContent += "<div id='timelineChart'></div>";
+    reportContent += "<div id='chartContainer' style='height: 300px; width: 100%;'></div>";
+    reportContent += "<div id='timelineChart' style='height: 300px; width: 100%;'></div>";
     reportContent += "</div>";
     reportContent += "</section>";
 
@@ -436,6 +440,26 @@
     summaryDiv.innerHTML = reportContent;
     summaryDiv.classList.remove('p-4', 'border', 'bg-gray-50');
     summaryDiv.classList.add('space-y-6');
+
+    // 初始化图表
+    const chart = new CanvasJS.Chart("chartContainer", {
+        animationEnabled: true,
+        title: {
+            text: "任务状态分布"
+        },
+        data: [{
+            type: "pie",
+            startAngle: 240,
+            yValueFormatString: "##0.00\"%\"",
+            indexLabel: "{label} {y}",
+            dataPoints: [
+                { y: completedTasks, label: "已完成" },
+                { y: delayedTasks, label: "延期" },
+                { y: totalTasks - completedTasks, label: "进行中" }
+            ]
+        }]
+    });
+    chart.render();
 }
   function downloadProjectReport() {
     const summaryDiv = document.getElementById("summary");
