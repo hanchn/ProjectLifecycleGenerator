@@ -11,6 +11,12 @@
         const owner = document.getElementById("edit-owner").value.trim();
         const desc = document.getElementById("edit-desc").value.trim();
         const actualEnd = document.getElementById("edit-actualEnd").value;
+        const currentDate = new Date().toISOString().split('T')[0];
+        
+        if (actualEnd && actualEnd > currentDate) {
+            return alert("实际完成时间不能大于当前时间");
+        }
+      
         const t = tasks.find((t) => t.id === id);
         if (t) {
           t.name = name;
@@ -18,17 +24,16 @@
           t.desc = desc;
           t.actualEnd = actualEnd;
           renderGantt();
-          const popup = document.querySelector(".popup-wrapper");
-          if (popup) popup.remove();
+          generateProjectReport();
+          document.querySelector(".popup-wrapper").remove();
         }
       }
 
       function confirmDelete(id) {
         if (!confirm("确定要删除该任务？")) return;
         tasks = tasks.filter((t) => t.id !== id);
-        renderGantt(); // 重新渲染甘特图
-        const popup = document.querySelector(".popup-wrapper");
-        if (popup) popup.remove(); // 确保弹窗被移除
+        renderGantt();
+        document.querySelector(".popup-wrapper").remove();
       }
     </script>
     <script src="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.min.js"></script>
@@ -111,14 +116,14 @@
             class="w-full border px-2 py-1 rounded"
           />
         </div>
-        <div>
+        <!-- <div>
           <label class="text-sm">实际完成</label
           ><input
             type="date"
             id="taskActualEnd"
             class="w-full border px-2 py-1 rounded"
           />
-        </div>
+        </div> -->
         <div class="md:col-span-3">
           <label class="text-sm">描述</label
           ><textarea
@@ -223,7 +228,6 @@
           const name = taskName.value.trim();
           const start = taskStart.value;
           const end = taskEnd.value;
-          const actualEnd = taskActualEnd.value;
           const color = taskColor.value;
           const desc = taskDesc.value.trim();
           const owner = taskOwner.value.trim();
@@ -231,11 +235,12 @@
           if (!name || !start || !end) {
               return alert("请填写完整信息");
           }
-          if (new Date(start) > new Date(end)) {
+          // Convert to Date objects for comparison
+          const startDate = new Date(start);
+          const endDate = new Date(end);
+      
+          if (startDate > endDate) {
               return alert("开始不能晚于结束");
-          }
-          if (actualEnd && new Date(actualEnd) < new Date(start)) {
-              return alert("实际完成不能早于开始");
           }
       
           tasks.push({
@@ -243,7 +248,6 @@
               name,
               start,
               end,
-              actualEnd,
               custom_class: color,
               desc,
               owner,
@@ -271,23 +275,23 @@
               div.className =
                 "popup-wrapper fixed z-50 top-0 left-0 w-full h-full flex items-center justify-center bg-black bg-opacity-30";
               div.innerHTML = `
-        <div class='bg-white p-4 rounded-lg shadow-xl w-80'>
-          <h2 class='font-bold text-lg mb-2'>编辑任务：${task.name}</h2>
-          <label class='text-sm block mb-1'>任务名称</label>
-          <input class='w-full border mb-2 px-2 py-1 rounded' value="${task.name}" id="edit-name" />
-          <label class='text-sm block mb-1'>负责人</label>
-          <input class='w-full border mb-2 px-2 py-1 rounded' value="${task.owner}" id="edit-owner" />
-          <label class='text-sm block mb-1'>实际完成时间</label>
-          <input type="date" class='w-full border mb-2 px-2 py-1 rounded' value="${task.actualEnd || ''}" id="edit-actualEnd" />
-          <label class='text-sm block mb-1'>描述</label>
-          <textarea class='w-full border mb-2 px-2 py-1 rounded' id="edit-desc">${task.desc}</textarea>
-          <div class='flex justify-between mt-4'>
-            <button onclick="saveEdit('${task.id}')" class='bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700'>保存</button>
-            <button onclick="confirmDelete('${task.id}')" class='bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700'>删除</button>
-            <button onclick="document.querySelector('.popup-wrapper').remove()" class='border px-3 py-1 rounded'>取消</button>
+          <div class='bg-white p-4 rounded-lg shadow-xl w-80'>
+            <h2 class='font-bold text-lg mb-2'>编辑任务：${task.name}</h2>
+            <label class='text-sm block mb-1'>任务名称</label>
+            <input class='w-full border mb-2 px-2 py-1 rounded' value="${task.name}" id="edit-name" />
+            <label class='text-sm block mb-1'>负责人</label>
+            <input class='w-full border mb-2 px-2 py-1 rounded' value="${task.owner}" id="edit-owner" />
+            <label class='text-sm block mb-1'>实际完成时间</label>
+            <input type="date" class='w-full border mb-2 px-2 py-1 rounded' value="${task.actualEnd || ''}" id="edit-actualEnd" />
+            <label class='text-sm block mb-1'>描述</label>
+            <textarea class='w-full border mb-2 px-2 py-1 rounded' id="edit-desc">${task.desc}</textarea>
+            <div class='flex justify-between mt-4'>
+              <button onclick="saveEdit('${task.id}')" class='bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700'>保存</button>
+              <button onclick="confirmDelete('${task.id}')" class='bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700'>删除</button>
+              <button onclick="document.querySelector('.popup-wrapper').remove()" class='border px-3 py-1 rounded'>取消</button>
+            </div>
           </div>
-        </div>
-      `;
+        `;
               document.body.appendChild(div);
             },
             on_dblclick: (task) => {
@@ -345,6 +349,33 @@
                 task.desc || ""
               }</div>`;
             },
+            // 添加拖拽功能
+            bar_drag: true,
+            on_date_change: function(task, start, end) {
+              // 更新任务的开始和结束日期
+              const taskObj = tasks.find(t => t.id === task.id);
+              if (taskObj) {
+                // 格式化日期为YYYY-MM-DD格式
+                taskObj.start = formatDate(start);
+                taskObj.end = formatDate(end);
+                
+                // 如果有实际完成日期，检查是否延期
+                if (taskObj.actualEnd) {
+                  const actualEndDate = new Date(taskObj.actualEnd);
+                  const endDate = new Date(taskObj.end);
+                  
+                  // 自动计算是否延期
+                  if (actualEndDate > endDate) {
+                    console.log(`任务 "${taskObj.name}" 已延期`);
+                  } else {
+                    console.log(`任务 "${taskObj.name}" 按时完成`);
+                  }
+                }
+                
+                // 更新项目报告
+                generateProjectReport();
+              }
+            }
           }
         );
       }
@@ -365,75 +396,98 @@
     let delayedTasks = 0;
     let completedTasks = 0;
     let totalTasks = tasks.length;
-    let reportContent = "<div class='space-y-6'>";
-    reportContent += "<h1 class='text-2xl font-bold mb-4'>项目分析报告</h1>";
     
-    // 任务详情部分
-    reportContent += "<section class='bg-white p-6 rounded-lg shadow'>";
-    reportContent += "<h2 class='text-xl font-semibold mb-4'>任务详情</h2>";
-    reportContent += "<div class='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>";
-    tasks.forEach((task) => {
-      const isDelayed =
-        task.actualEnd && new Date(task.actualEnd) > new Date(task.end);
-      const isCompleted =
-        task.actualEnd && new Date(task.actualEnd) <= new Date(task.end);
-
-      if (isDelayed) delayedTasks++;
-      if (isCompleted) completedTasks++;
-
-      const statusColor = isDelayed
-        ? "bg-red-100"
-        : isCompleted
-        ? "bg-green-100"
-        : "bg-blue-100";
-      const statusText = isDelayed
-        ? "⏰ 延期"
-        : isCompleted
-        ? "✅ 已完成"
-        : "⏳ 进行中";
-
-      reportContent += `
-        <div class='p-4 rounded-lg shadow ${statusColor}'>
-          <h3 class='font-medium mb-2'>${task.name}</h3>
-          <p class='text-sm'><span class='font-medium'>负责人:</span> ${
-            task.owner || "未指定"
-          }</p>
-          <p class='text-sm'><span class='font-medium'>计划时间:</span> ${
-            task.start
-          } ~ ${task.end}</p>
-          <p class='text-sm'><span class='font-medium'>实际完成:</span> ${
-            task.actualEnd || "未完成"
-          }</p>
-          <p class='text-sm'><span class='font-medium'>状态:</span> ${statusText}</p>
-          <p class='text-sm'><span class='font-medium'>描述:</span> ${
-            task.desc || "无"
-          }</p>
-        </div>
-      `;
-    });
-    reportContent += "</div>";
-
-    // 项目概况部分
-    reportContent += "<section class='bg-white p-6 rounded-lg shadow'>";
-    reportContent += "<h2 class='text-xl font-semibold mb-4'>项目概况</h2>";
+    // 使用更现代化的布局和样式
+    let reportContent = "<div class='space-y-8'>";
+    reportContent += "<h1 class='text-3xl font-bold mb-6 text-gray-800 border-b pb-2'>📊 项目分析报告</h1>";
+    
+    // 项目概况部分 - 移到最上方
+    reportContent += "<section class='bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300'>";
+    reportContent += "<h2 class='text-xl font-semibold mb-4 text-gray-700 flex items-center'><span class='mr-2'>📈</span>项目概况</h2>";
     reportContent += "<div class='grid grid-cols-2 md:grid-cols-4 gap-4'>";
-    reportContent += `<div class='p-4 bg-blue-50 rounded-lg shadow'><p class='text-sm font-medium'>总任务数</p><p class='text-2xl font-bold'>${totalTasks}</p></div>`;
-    reportContent += `<div class='p-4 bg-green-50 rounded-lg shadow'><p class='text-sm font-medium'>已完成</p><p class='text-2xl font-bold'>${completedTasks}</p></div>`;
-    reportContent += `<div class='p-4 bg-red-50 rounded-lg shadow'><p class='text-sm font-medium'>延期</p><p class='text-2xl font-bold'>${delayedTasks}</p></div>`;
-    reportContent += `<div class='p-4 bg-yellow-50 rounded-lg shadow'><p class='text-sm font-medium'>进行中</p><p class='text-2xl font-bold'>${
-      totalTasks - completedTasks
-    }</p></div>`;
+    
+    // 使用更吸引人的卡片设计
+    reportContent += `<div class='p-4 bg-blue-50 rounded-lg shadow hover:shadow-md transition-all duration-300 transform hover:-translate-y-1'>
+                        <p class='text-sm font-medium text-blue-700'>总任务数</p>
+                        <p class='text-3xl font-bold text-blue-800'>${totalTasks}</p>
+                      </div>`;
+    reportContent += `<div class='p-4 bg-green-50 rounded-lg shadow hover:shadow-md transition-all duration-300 transform hover:-translate-y-1'>
+                        <p class='text-sm font-medium text-green-700'>已完成</p>
+                        <p class='text-3xl font-bold text-green-800'>${completedTasks}</p>
+                      </div>`;
+    reportContent += `<div class='p-4 bg-red-50 rounded-lg shadow hover:shadow-md transition-all duration-300 transform hover:-translate-y-1'>
+                        <p class='text-sm font-medium text-red-700'>延期</p>
+                        <p class='text-3xl font-bold text-red-800'>${delayedTasks}</p>
+                      </div>`;
+    reportContent += `<div class='p-4 bg-yellow-50 rounded-lg shadow hover:shadow-md transition-all duration-300 transform hover:-translate-y-1'>
+                        <p class='text-sm font-medium text-yellow-700'>进行中</p>
+                        <p class='text-3xl font-bold text-yellow-800'>${totalTasks - completedTasks}</p>
+                      </div>`;
     reportContent += "</div>";
+    reportContent += "</section>";
 
-    // 图表部分
-    reportContent += "<section class='bg-white p-6 rounded-lg shadow'>";
-    reportContent += "<h2 class='text-xl font-semibold mb-4'>任务状态分布</h2>";
+    // 图表部分 - 更好的布局
+    reportContent += "<section class='bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 mt-6'>";
+    reportContent += "<h2 class='text-xl font-semibold mb-4 text-gray-700 flex items-center'><span class='mr-2'>📊</span>任务状态分布</h2>";
     reportContent += "<div class='grid grid-cols-1 lg:grid-cols-2 gap-8'>";
     reportContent += "<div id='chartContainer' style='height: 300px; width: 100%;'></div>";
     reportContent += "<div id='timelineChart' style='height: 300px; width: 100%;'></div>";
     reportContent += "</div>";
     reportContent += "</section>";
+    
+    // 任务详情部分 - 更好的卡片设计
+    reportContent += "<section class='bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 mt-6'>";
+    reportContent += "<h2 class='text-xl font-semibold mb-4 text-gray-700 flex items-center'><span class='mr-2'>📋</span>任务详情</h2>";
+    reportContent += "<div class='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>";
+    
+    tasks.forEach((task) => {
+      const isDelayed = task.actualEnd && new Date(task.actualEnd) > new Date(task.end);
+      const isCompleted = task.actualEnd && new Date(task.actualEnd) <= new Date(task.end);
 
+      if (isDelayed) delayedTasks++;
+      if (isCompleted) completedTasks++;
+
+      // 更美观的任务卡片
+      const statusColor = isDelayed
+        ? "bg-red-50 border-red-200"
+        : isCompleted
+        ? "bg-green-50 border-green-200"
+        : "bg-blue-50 border-blue-200";
+        
+      const statusIcon = isDelayed
+        ? "⏰"
+        : isCompleted
+        ? "✅"
+        : "⏳";
+        
+      const statusText = isDelayed
+        ? "延期"
+        : isCompleted
+        ? "已完成"
+        : "进行中";
+        
+      const statusTextColor = isDelayed
+        ? "text-red-700"
+        : isCompleted
+        ? "text-green-700"
+        : "text-blue-700";
+
+      reportContent += `
+        <div class='p-4 rounded-lg ${statusColor} border shadow-sm hover:shadow-md transition-all duration-300 transform hover:-translate-y-1'>
+          <div class="flex justify-between items-start">
+            <h3 class='font-medium mb-2 text-gray-800'>${task.name}</h3>
+            <span class='${statusTextColor} text-sm font-medium px-2 py-1 rounded-full bg-white shadow-sm'>${statusIcon} ${statusText}</span>
+          </div>
+          <p class='text-sm mb-1'><span class='font-medium text-gray-600'>负责人:</span> ${task.owner || "未指定"}</p>
+          <p class='text-sm mb-1'><span class='font-medium text-gray-600'>计划时间:</span> ${task.start} ~ ${task.end}</p>
+          <p class='text-sm mb-1'><span class='font-medium text-gray-600'>实际完成:</span> ${task.actualEnd || "未完成"}</p>
+          <p class='text-sm'><span class='font-medium text-gray-600'>描述:</span> ${task.desc || "无"}</p>
+        </div>
+      `;
+    });
+    
+    reportContent += "</div>";
+    reportContent += "</section>";
     reportContent += "</div>";
 
     const summaryDiv = document.getElementById('summary');
@@ -441,25 +495,87 @@
     summaryDiv.classList.remove('p-4', 'border', 'bg-gray-50');
     summaryDiv.classList.add('space-y-6');
 
-    // 初始化图表
+    // 初始化图表 - 更好的样式
     const chart = new CanvasJS.Chart("chartContainer", {
         animationEnabled: true,
+        backgroundColor: "#f9fafb",
+        theme: "light2",
         title: {
-            text: "任务状态分布"
+            text: "任务状态分布",
+            fontFamily: "Arial",
+            fontSize: 20,
+            fontWeight: "normal"
+        },
+        legend: {
+            cursor: "pointer",
+            itemclick: toggleDataSeries
         },
         data: [{
-            type: "pie",
-            startAngle: 240,
-            yValueFormatString: "##0.00\"%\"",
-            indexLabel: "{label} {y}",
+            type: "doughnut",
+            showInLegend: true,
+            indexLabel: "{label}: {y}",
+            indexLabelFontSize: 14,
+            yValueFormatString: "#,##0",
             dataPoints: [
-                { y: completedTasks, label: "已完成" },
-                { y: delayedTasks, label: "延期" },
-                { y: totalTasks - completedTasks, label: "进行中" }
+                { y: completedTasks, label: "已完成", color: "#10b981" },
+                { y: delayedTasks, label: "延期", color: "#ef4444" },
+                { y: totalTasks - completedTasks - delayedTasks, label: "进行中", color: "#3b82f6" }
             ]
         }]
     });
     chart.render();
+    
+    // 添加时间线图表
+    const timelineData = [];
+    tasks.forEach(task => {
+        timelineData.push({
+            x: new Date(task.start),
+            y: tasks.indexOf(task),
+            name: task.name,
+            owner: task.owner || "未指定"
+        });
+        timelineData.push({
+            x: new Date(task.end),
+            y: tasks.indexOf(task),
+            name: task.name,
+            owner: task.owner || "未指定"
+        });
+    });
+    
+    const timelineChart = new CanvasJS.Chart("timelineChart", {
+        animationEnabled: true,
+        backgroundColor: "#f9fafb",
+        theme: "light2",
+        title: {
+            text: "项目时间线",
+            fontFamily: "Arial",
+            fontSize: 20,
+            fontWeight: "normal"
+        },
+        axisX: {
+            valueFormatString: "YYYY-MM-DD"
+        },
+        axisY: {
+            title: "任务",
+            includeZero: true
+        },
+        data: [{
+            type: "line",
+            xValueFormatString: "YYYY-MM-DD",
+            dataPoints: timelineData
+        }]
+    });
+    timelineChart.render();
+}
+
+// 图表交互功能
+function toggleDataSeries(e) {
+    if (typeof(e.dataSeries.visible) === "undefined" || e.dataSeries.visible) {
+        e.dataSeries.visible = false;
+    } else {
+        e.dataSeries.visible = true;
+    }
+    e.chart.render();
 }
   function downloadProjectReport() {
     const summaryDiv = document.getElementById("summary");
@@ -483,4 +599,15 @@
     }
     // 添加其他事件处理
   });
+
+  // 图表辅助函数// 添加辅助函数：格式化日期为YYYY-MM-DD
+  function formatDate(date) {
+    const d = new Date(date);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
 </script>
+
+
