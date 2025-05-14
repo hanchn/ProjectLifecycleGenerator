@@ -57,11 +57,15 @@
       }
       .gantt .popup-wrapper {
         display: none;
+        z-index: 1000; /* 添加z-index避免被其他元素覆盖 */
       }
       .gantt .bar-wrapper:hover .popup-wrapper {
         display: block;
       }
+      </style>
+      
     </style>
+    <script src="https://cdn.canvasjs.com/canvasjs.min.js"></script>
   </head>
   <body class="bg-gray-100 p-6">
     <div id="capture" class="max-w-6xl mx-auto bg-white rounded-xl shadow p-6">
@@ -143,6 +147,12 @@
               📊 生成项目分析报告
             </button>
             <button
+              onclick="downloadProjectReport()"
+              class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
+            >
+              📥 下载项目分析报告
+            </button>
+            <button
               onclick="copyGantt()"
               class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
             >
@@ -187,35 +197,58 @@
       let gantt;
 
       function toggleExportMenu() {
-        document.getElementById("exportMenu").classList.toggle("hidden");
+        const exportMenu = document.getElementById("exportMenu");
+        if (exportMenu) {
+          exportMenu.classList.toggle("hidden");
+        }
       }
 
+      // 使用事件委托优化事件绑定
+      document.body.addEventListener("click", function(e) {
+        if (e.target.matches("#exportMenuButton")) {
+          toggleExportMenu();
+        }
+        // 点击其他地方时关闭菜单
+        if (!e.target.closest("#exportMenu") && !e.target.matches("#exportMenuButton")) {
+          const exportMenu = document.getElementById("exportMenu");
+          if (exportMenu && !exportMenu.classList.contains("hidden")) {
+            exportMenu.classList.add("hidden");
+          }
+        }
+      });
+
       function addTask() {
-        const name = taskName.value.trim();
-        const start = taskStart.value;
-        const end = taskEnd.value;
-        const actualEnd = taskActualEnd.value;
-        const color = taskColor.value;
-        const desc = taskDesc.value.trim();
-        const owner = taskOwner.value.trim();
-
-        if (!name || !start || !end) return alert("请填写完整信息");
-        if (new Date(start) > new Date(end)) return alert("开始不能晚于结束");
-        if (actualEnd && new Date(actualEnd) < new Date(start))
-          return alert("实际完成不能早于开始");
-
-        tasks.push({
-          id: "t-" + Date.now(),
-          name,
-          start,
-          end,
-          actualEnd,
-          custom_class: color,
-          desc,
-          owner,
-          progress: 0,
-        });
-        renderGantt();
+          const name = taskName.value.trim();
+          const start = taskStart.value;
+          const end = taskEnd.value;
+          const actualEnd = taskActualEnd.value;
+          const color = taskColor.value;
+          const desc = taskDesc.value.trim();
+          const owner = taskOwner.value.trim();
+      
+          if (!name || !start || !end) {
+              return alert("请填写完整信息");
+          }
+          if (new Date(start) > new Date(end)) {
+              return alert("开始不能晚于结束");
+          }
+          if (actualEnd && new Date(actualEnd) < new Date(start)) {
+              return alert("实际完成不能早于开始");
+          }
+      
+          tasks.push({
+              id: "t-" + Date.now(),
+              name,
+              start,
+              end,
+              actualEnd,
+              custom_class: color,
+              desc,
+              owner,
+              progress: 0,
+          });
+          renderGantt();
+          generateProjectReport(); // 添加任务后自动更新报告
       }
 
       function renderGantt() {
@@ -318,46 +351,112 @@
 </html>
 
 <script>
+  // 在页面加载完成后初始化图表
+  window.addEventListener('load', function() {
+    if (tasks.length > 0) {
+      generateProjectReport();
+    }
+  });
   function generateProjectReport() {
-    let reportContent = "# 项目分析报告\n\n";
     let delayedTasks = 0;
     let completedTasks = 0;
     let totalTasks = tasks.length;
-
-    tasks.forEach(task => {
-      const isDelayed = task.actualEnd && new Date(task.actualEnd) > new Date(task.end);
-      const isCompleted = task.actualEnd && new Date(task.actualEnd) <= new Date(task.end);
+    let reportContent = "<div class='space-y-6'>";
+    reportContent += "<h1 class='text-2xl font-bold mb-4'>项目分析报告</h1>";
+    
+    // 任务详情部分
+    reportContent += "<section class='bg-white p-6 rounded-lg shadow'>";
+    reportContent += "<h2 class='text-xl font-semibold mb-4'>任务详情</h2>";
+    reportContent += "<div class='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>";
+    tasks.forEach((task) => {
+      const isDelayed =
+        task.actualEnd && new Date(task.actualEnd) > new Date(task.end);
+      const isCompleted =
+        task.actualEnd && new Date(task.actualEnd) <= new Date(task.end);
 
       if (isDelayed) delayedTasks++;
       if (isCompleted) completedTasks++;
 
-      reportContent += `## ${task.name}\n`;
-      reportContent += `- 负责人: ${task.owner || "未指定"}\n`;
-      reportContent += `- 计划时间: ${task.start} ~ ${task.end}\n`;
-      reportContent += `- 实际完成: ${task.actualEnd || "未完成"}\n`;
-      reportContent += `- 状态: ${isDelayed ? "⏰ 延期" : isCompleted ? "✅ 已完成" : "⏳ 进行中"}\n`;
-      reportContent += `- 描述: ${task.desc || "无"}\n\n`;
+      const statusColor = isDelayed
+        ? "bg-red-100"
+        : isCompleted
+        ? "bg-green-100"
+        : "bg-blue-100";
+      const statusText = isDelayed
+        ? "⏰ 延期"
+        : isCompleted
+        ? "✅ 已完成"
+        : "⏳ 进行中";
+
+      reportContent += `
+        <div class='p-4 rounded-lg shadow ${statusColor}'>
+          <h3 class='font-medium mb-2'>${task.name}</h3>
+          <p class='text-sm'><span class='font-medium'>负责人:</span> ${
+            task.owner || "未指定"
+          }</p>
+          <p class='text-sm'><span class='font-medium'>计划时间:</span> ${
+            task.start
+          } ~ ${task.end}</p>
+          <p class='text-sm'><span class='font-medium'>实际完成:</span> ${
+            task.actualEnd || "未完成"
+          }</p>
+          <p class='text-sm'><span class='font-medium'>状态:</span> ${statusText}</p>
+          <p class='text-sm'><span class='font-medium'>描述:</span> ${
+            task.desc || "无"
+          }</p>
+        </div>
+      `;
     });
+    reportContent += "</div>";
 
-    reportContent += `\n## 项目概况\n`;
-    reportContent += `- 总任务数: ${totalTasks}\n`;
-    reportContent += `- 已完成任务: ${completedTasks}\n`;
-    reportContent += `- 延期任务: ${delayedTasks}\n`;
-    reportContent += `- 进行中任务: ${totalTasks - completedTasks}\n`;
+    // 项目概况部分
+    reportContent += "<section class='bg-white p-6 rounded-lg shadow'>";
+    reportContent += "<h2 class='text-xl font-semibold mb-4'>项目概况</h2>";
+    reportContent += "<div class='grid grid-cols-2 md:grid-cols-4 gap-4'>";
+    reportContent += `<div class='p-4 bg-blue-50 rounded-lg shadow'><p class='text-sm font-medium'>总任务数</p><p class='text-2xl font-bold'>${totalTasks}</p></div>`;
+    reportContent += `<div class='p-4 bg-green-50 rounded-lg shadow'><p class='text-sm font-medium'>已完成</p><p class='text-2xl font-bold'>${completedTasks}</p></div>`;
+    reportContent += `<div class='p-4 bg-red-50 rounded-lg shadow'><p class='text-sm font-medium'>延期</p><p class='text-2xl font-bold'>${delayedTasks}</p></div>`;
+    reportContent += `<div class='p-4 bg-yellow-50 rounded-lg shadow'><p class='text-sm font-medium'>进行中</p><p class='text-2xl font-bold'>${
+      totalTasks - completedTasks
+    }</p></div>`;
+    reportContent += "</div>";
 
-    // 在页面显示报告
+    // 图表部分
+    reportContent += "<section class='bg-white p-6 rounded-lg shadow'>";
+    reportContent += "<h2 class='text-xl font-semibold mb-4'>任务状态分布</h2>";
+    reportContent += "<div class='grid grid-cols-1 lg:grid-cols-2 gap-8'>";
+    reportContent += "<div id='chartContainer'></div>";
+    reportContent += "<div id='timelineChart'></div>";
+    reportContent += "</div>";
+    reportContent += "</section>";
+
+    reportContent += "</div>";
+
     const summaryDiv = document.getElementById('summary');
-    summaryDiv.innerHTML = reportContent.replace(/\n/g, '<br>');
+    summaryDiv.innerHTML = reportContent;
+    summaryDiv.classList.remove('p-4', 'border', 'bg-gray-50');
+    summaryDiv.classList.add('space-y-6');
+}
+  function downloadProjectReport() {
+    const summaryDiv = document.getElementById("summary");
+    const reportContent = summaryDiv.innerText;
 
-    // 下载报告
-    const blob = new Blob([reportContent], { type: 'text/markdown' });
+    const blob = new Blob([reportContent], { type: "text/markdown" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
+    const a = document.createElement("a");
     a.href = url;
-    a.download = '项目分析报告.md';
+    a.download = "项目分析报告.md";
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   }
+
+  // 使用事件委托优化事件绑定
+  document.body.addEventListener("click", function (e) {
+    if (e.target.matches("#exportMenuButton")) {
+      toggleExportMenu();
+    }
+    // 添加其他事件处理
+  });
 </script>
