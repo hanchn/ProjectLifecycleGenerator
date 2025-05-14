@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="zh">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>项目生命周期生成器</title>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <script>
+      function saveEdit(id) {
+        const name = document.getElementById("edit-name").value.trim();
+        const owner = document.getElementById("edit-owner").value.trim();
+        const desc = document.getElementById("edit-desc").value.trim();
+        const t = tasks.find((t) => t.id === id);
+        if (t) {
+          t.name = name;
+          t.owner = owner;
+          t.desc = desc;
+          renderGantt(); // 重新渲染甘特图，更新悬停信息
+          const popup = document.querySelector(".popup-wrapper");
+          if (popup) popup.remove(); // 确保弹窗被移除
+        }
+      }
+
+      function confirmDelete(id) {
+        if (!confirm("确定要删除该任务？")) return;
+        tasks = tasks.filter((t) => t.id !== id);
+        renderGantt(); // 重新渲染甘特图
+        const popup = document.querySelector(".popup-wrapper");
+        if (popup) popup.remove(); // 确保弹窗被移除
+      }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.min.js"></script>
+    <link
+      href="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
+      rel="stylesheet"
+    />
+    <style>
+      .bar-green .bar {
+        fill: #10b981 !important;
+      }
+      .bar-blue .bar {
+        fill: #3b82f6 !important;
+      }
+      .bar-red .bar {
+        fill: #ef4444 !important;
+      }
+      .bar-orange .bar {
+        fill: #f97316 !important;
+      }
+      .gantt .bar-wrapper:hover .bar {
+        stroke-width: 3;
+        stroke: #333;
+      }
+      .gantt .popup-wrapper {
+        display: none;
+      }
+      .gantt .bar-wrapper:hover .popup-wrapper {
+        display: block;
+      }
+    </style>
+  </head>
+  <body class="bg-gray-100 p-6">
+    <div id="capture" class="max-w-6xl mx-auto bg-white rounded-xl shadow p-6">
+      <h1 class="text-2xl font-bold mb-6">📅 项目任务甘特图生成器</h1>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+        <div>
+          <label class="text-sm">任务名称</label
+          ><input
+            id="taskName"
+            class="w-full border px-2 py-1 rounded"
+            placeholder="如：需求分析"
+          />
+        </div>
+        <div>
+          <label class="text-sm">负责人</label
+          ><input id="taskOwner" class="w-full border px-2 py-1 rounded" />
+        </div>
+        <div>
+          <label class="text-sm">颜色</label
+          ><select id="taskColor" class="w-full border px-2 py-1 rounded">
+            <option value="green" selected>绿色</option>
+            <option value="blue">蓝色</option>
+            <option value="red">红色</option>
+            <option value="orange">橙色</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-sm">开始日期</label
+          ><input
+            type="date"
+            id="taskStart"
+            class="w-full border px-2 py-1 rounded"
+          />
+        </div>
+        <div>
+          <label class="text-sm">结束日期</label
+          ><input
+            type="date"
+            id="taskEnd"
+            class="w-full border px-2 py-1 rounded"
+          />
+        </div>
+        <div>
+          <label class="text-sm">实际完成</label
+          ><input
+            type="date"
+            id="taskActualEnd"
+            class="w-full border px-2 py-1 rounded"
+          />
+        </div>
+        <div class="md:col-span-3">
+          <label class="text-sm">描述</label
+          ><textarea
+            id="taskDesc"
+            class="w-full border px-2 py-1 rounded"
+          ></textarea>
+        </div>
+      </div>
+
+      <div class="flex justify-between items-center mb-4">
+        <div class="relative inline-block text-left">
+          <button
+            id="exportMenuButton"
+            type="button"
+            class="px-4 py-2 border bg-white text-sm rounded-md"
+            onclick="toggleExportMenu()"
+          >
+            🛠️ 拓展功能
+          </button>
+          <div
+            id="exportMenu"
+            class="absolute mt-2 w-56 hidden rounded bg-white border shadow z-10"
+          >
+            <button
+              onclick="generateProjectReport()"
+              class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
+            >
+              📊 生成项目分析报告
+            </button>
+            <button
+              onclick="copyGantt()"
+              class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
+            >
+              💾 保存图像
+            </button>
+            <button
+              onclick="exportData()"
+              class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
+            >
+              📤 导出数据
+            </button>
+            <label
+              class="block px-4 py-2 text-sm hover:bg-gray-100 cursor-pointer"
+            >
+              📥 导入数据<input
+                type="file"
+                id="importFile"
+                accept=".json"
+                onchange="importData(event)"
+                hidden
+              />
+            </label>
+          </div>
+        </div>
+        <button
+          onclick="addTask()"
+          class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700"
+        >
+          ➕ 添加任务
+        </button>
+      </div>
+
+      <div id="gantt" class="overflow-x-auto"></div>
+      <div
+        id="summary"
+        class="mt-6 p-4 border bg-gray-50 text-sm text-gray-800 rounded"
+      ></div>
+    </div>
+
+    <script>
+      let tasks = [];
+      let gantt;
+
+      function toggleExportMenu() {
+        document.getElementById("exportMenu").classList.toggle("hidden");
+      }
+
+      function addTask() {
+        const name = taskName.value.trim();
+        const start = taskStart.value;
+        const end = taskEnd.value;
+        const actualEnd = taskActualEnd.value;
+        const color = taskColor.value;
+        const desc = taskDesc.value.trim();
+        const owner = taskOwner.value.trim();
+
+        if (!name || !start || !end) return alert("请填写完整信息");
+        if (new Date(start) > new Date(end)) return alert("开始不能晚于结束");
+        if (actualEnd && new Date(actualEnd) < new Date(start))
+          return alert("实际完成不能早于开始");
+
+        tasks.push({
+          id: "t-" + Date.now(),
+          name,
+          start,
+          end,
+          actualEnd,
+          custom_class: color,
+          desc,
+          owner,
+          progress: 0,
+        });
+        renderGantt();
+      }
+
+      function renderGantt() {
+        document.getElementById("gantt").innerHTML = "";
+        gantt = new Gantt(
+          "#gantt",
+          tasks.map((t) => ({
+            ...t,
+            custom_class: `bar-${t.custom_class}`,
+          })),
+          {
+            view_mode: "Day",
+            on_click: (task) => {
+              const popup = document.querySelector(".popup-wrapper");
+              if (popup) popup.remove();
+
+              const div = document.createElement("div");
+              div.className =
+                "popup-wrapper fixed z-50 top-0 left-0 w-full h-full flex items-center justify-center bg-black bg-opacity-30";
+              div.innerHTML = `
+        <div class='bg-white p-4 rounded-lg shadow-xl w-80'>
+          <h2 class='font-bold text-lg mb-2'>编辑任务：${task.name}</h2>
+          <label class='text-sm block mb-1'>任务名称</label>
+          <input class='w-full border mb-2 px-2 py-1 rounded' value="${task.name}" id="edit-name" />
+          <label class='text-sm block mb-1'>负责人</label>
+          <input class='w-full border mb-2 px-2 py-1 rounded' value="${task.owner}" id="edit-owner" />
+          <label class='text-sm block mb-1'>描述</label>
+          <textarea class='w-full border mb-2 px-2 py-1 rounded' id="edit-desc">${task.desc}</textarea>
+          <div class='flex justify-between mt-4'>
+            <button onclick="saveEdit('${task.id}')" class='bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700'>保存</button>
+            <button onclick="confirmDelete('${task.id}')" class='bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700'>删除</button>
+            <button onclick="document.querySelector('.popup-wrapper').remove()" class='border px-3 py-1 rounded'>取消</button>
+          </div>
+        </div>
+      `;
+              document.body.appendChild(div);
+            },
+            on_dblclick: (task) => {
+              const bar = task._element?.group?.node;
+              if (!bar) return;
+              const existing = document.getElementById(`delete-btn-${task.id}`);
+              if (existing) existing.remove();
+              const btn = document.createElement("button");
+              btn.textContent = "✖";
+              btn.id = `delete-btn-${task.id}`;
+              Object.assign(btn.style, {
+                position: "absolute",
+                background: "red",
+                color: "white",
+                border: "none",
+                borderRadius: "9999px",
+                cursor: "pointer",
+                fontSize: "12px",
+                padding: "0 6px",
+                zIndex: 9999,
+              });
+              const rect = bar.getBoundingClientRect();
+              btn.style.top = `${rect.top + window.scrollY}px`;
+              btn.style.left = `${rect.right + window.scrollX - 10}px`;
+              btn.onclick = () => {
+                if (!confirm("确定删除任务？")) return;
+                tasks = tasks.filter((t) => t.id !== task.id);
+                document.body.removeChild(btn);
+                renderGantt();
+              };
+              document.body.appendChild(btn);
+              setTimeout(
+                () =>
+                  document.body.contains(btn) && document.body.removeChild(btn),
+                4000
+              );
+            },
+            custom_popup_html: (task) => {
+              const days =
+                Math.ceil(
+                  (new Date(task.end) - new Date(task.start)) / 86400000
+                ) + 1;
+              const delayInfo = task.actualEnd
+                ? new Date(task.actualEnd) > new Date(task.end)
+                  ? " ⏰ 延期"
+                  : " ✅ 提前"
+                : "";
+              return `<div class='bg-white p-2 border rounded w-56'><b>${
+                task.name
+              }${delayInfo}</b><br>${task.start} ~ ${
+                task.end
+              }<br>🕒 ${days} 天<br>负责人：${
+                task.owner || "未指定"
+              }<br>完成：${task.actualEnd || "未填写"}<br>${
+                task.desc || ""
+              }</div>`;
+            },
+          }
+        );
+      }
+
+      // 省略 copyGantt / exportData / importData / generateMarkdownReport 已集成
+    </script>
+  </body>
+</html>
+
+<script>
+  function generateProjectReport() {
+    let reportContent = "# 项目分析报告\n\n";
+    let delayedTasks = 0;
+    let completedTasks = 0;
+    let totalTasks = tasks.length;
+
+    tasks.forEach(task => {
+      const isDelayed = task.actualEnd && new Date(task.actualEnd) > new Date(task.end);
+      const isCompleted = task.actualEnd && new Date(task.actualEnd) <= new Date(task.end);
+
+      if (isDelayed) delayedTasks++;
+      if (isCompleted) completedTasks++;
+
+      reportContent += `## ${task.name}\n`;
+      reportContent += `- 负责人: ${task.owner || "未指定"}\n`;
+      reportContent += `- 计划时间: ${task.start} ~ ${task.end}\n`;
+      reportContent += `- 实际完成: ${task.actualEnd || "未完成"}\n`;
+      reportContent += `- 状态: ${isDelayed ? "⏰ 延期" : isCompleted ? "✅ 已完成" : "⏳ 进行中"}\n`;
+      reportContent += `- 描述: ${task.desc || "无"}\n\n`;
+    });
+
+    reportContent += `\n## 项目概况\n`;
+    reportContent += `- 总任务数: ${totalTasks}\n`;
+    reportContent += `- 已完成任务: ${completedTasks}\n`;
+    reportContent += `- 延期任务: ${delayedTasks}\n`;
+    reportContent += `- 进行中任务: ${totalTasks - completedTasks}\n`;
+
+    // 在页面显示报告
+    const summaryDiv = document.getElementById('summary');
+    summaryDiv.innerHTML = reportContent.replace(/\n/g, '<br>');
+
+    // 下载报告
+    const blob = new Blob([reportContent], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = '项目分析报告.md';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+</script>
